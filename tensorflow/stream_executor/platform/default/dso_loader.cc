@@ -16,6 +16,7 @@ limitations under the License.
 
 #include <stdlib.h>
 
+#include "DirectMLConfig.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "tensorflow/stream_executor/lib/env.h"
@@ -25,7 +26,6 @@ limitations under the License.
 #include "tensorflow/stream_executor/platform/port.h"
 #include "third_party/gpus/cuda/cuda_config.h"
 #include "third_party/tensorrt/tensorrt_config.h"
-#include "DirectMLConfig.h"
 
 namespace stream_executor {
 namespace internal {
@@ -41,10 +41,22 @@ string GetDirectMLPath() {
   return (path != nullptr ? path : "");
 }
 
-string GetDirectMLVersion() {
-  // If TF_DIRECTML_PATH is set, use DirectML.dll / libdirectml.so.
-  // Otherwise, use DirectML<ver>.dll / libdirectml.so.<ver>.
-  return GetDirectMLPath().empty() ? DIRECTML_SOURCE_VERSION : "";
+string GetDirectMLFileName() {
+  if (!GetDirectMLPath().empty()) {
+    // If TF_DIRECTML_PATH is set, look for DirectML.dll/libdirectml.so.
+#if _WIN32
+    return string("DirectML.");
+#else
+    return string("directml.");
+#endif
+  } else {
+    // Otherwise, look for bundled DirectML.<ver>.dll/libdirectml.<ver>.so
+#if _WIN32
+    return string("DirectML.") + DIRECTML_SOURCE_VERSION;
+#else
+    return string("directml.") + DIRECTML_SOURCE_VERSION;
+#endif
+  }
 }
 
 port::StatusOr<void*> GetDsoHandle(const string& name, const string& version,
@@ -153,16 +165,11 @@ port::StatusOr<void*> GetRocrandDsoHandle() {
 port::StatusOr<void*> GetHipDsoHandle() { return GetDsoHandle("hip_hcc", ""); }
 
 port::StatusOr<void*> GetDirectMLDsoHandle() {
-#ifdef _WIN32
-  return GetDsoHandle("DirectML", GetDirectMLVersion(), GetDirectMLPath());
-#else
-  return GetDsoHandle("directml", GetDirectMLVersion(), GetDirectMLPath());
-#endif
+  return GetDsoHandle(GetDirectMLFileName(), "", GetDirectMLPath());
 }
 
 port::StatusOr<void*> GetDirectMLDebugDsoHandle() {
-  return GetDsoHandle("DirectML.Debug", GetDirectMLVersion(),
-                      GetDirectMLPath());
+  return GetDsoHandle("DirectML.Debug", "", GetDirectMLPath());
 }
 
 }  // namespace DsoLoader
